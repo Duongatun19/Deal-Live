@@ -448,6 +448,7 @@
     }
     setSaved(arr);
     renderCards();
+    syncToHash();
     // Đánh dấu active
     const entry = getSaved().find(s => s.id === id && s.name === name);
     if (entry) setActiveCard(entry.uid);
@@ -457,6 +458,7 @@
     setSaved(getSaved().filter(s => s.uid !== uid));
     if (activeCardId === uid) activeCardId = null;
     renderCards();
+    syncToHash();
   }
 
   function loadSaved(uid) {
@@ -472,6 +474,7 @@
   function setActiveCard(uid) {
     activeCardId = uid;
     setLastActive(uid);
+    syncToHash();
     document.querySelectorAll('.sheet-card').forEach(el => {
       el.classList.toggle('active', Number(el.dataset.uid) === uid);
     });
@@ -516,8 +519,36 @@
     return Number(localStorage.getItem('dealLastActiveUid')) || null;
   }
 
+  // ─── Đồng bộ danh sách đã lưu vào URL hash (backup khi localStorage bị xoá) ──
+  function syncToHash() {
+    const arr = getSaved();
+    const lastUid = getLastActive();
+    if (arr.length) {
+      const payload = JSON.stringify({ sheets: arr, last: lastUid });
+      history.replaceState(null, '', '#' + encodeURIComponent(btoa(unescape(encodeURIComponent(payload)))));
+    } else {
+      history.replaceState(null, '', window.location.pathname);
+    }
+  }
+
+  function restoreFromHash() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return false;
+    try {
+      const payload = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(hash)))));
+      if (payload && Array.isArray(payload.sheets) && payload.sheets.length) {
+        setSaved(payload.sheets);
+        if (payload.last) localStorage.setItem('dealLastActiveUid', String(payload.last));
+        return true;
+      }
+    } catch (e) { /* hash không hợp lệ → bỏ qua */ }
+    return false;
+  }
+
   // Khởi động
   window.addEventListener('DOMContentLoaded', () => {
+    // Nếu localStorage rỗng, thử khôi phục từ URL hash
+    if (!getSaved().length) restoreFromHash();
     renderCards();
     const arr = getSaved();
     if (!arr.length) return;
