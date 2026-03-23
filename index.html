@@ -389,7 +389,7 @@
     td.style.verticalAlign = 'middle';
     td.appendChild(document.createTextNode(text));
     td.appendChild(document.createElement('br'));
-    td.appendChild(makeCopyBtn(text, '📋'));
+    td.appendChild(makeCopyBtn(text.replace(/\./g, ''), '📋'));
     return td;
   }
 
