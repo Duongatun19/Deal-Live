@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bảng Deal Sản Phẩm</title>
+ <link rel="stylesheet" href="./style.css">
+</head> 
+<body>
+
+<h1>Bảng Deal Sản Phẩm</h1>
+
+<!-- ====== CẤU HÌNH ====== -->
+<div id="config">
+  <h3>⚙️ Cấu hình Google Sheets</h3>
+  <label>Tên gợi nhớ &nbsp;<small style="font-weight:400">(để phân biệt khi lưu nhiều sheet)</small></label>
+  <input id="sheetLabel" type="text" placeholder="Ví dụ: Deal tháng 3, MDCare April…" />
+  <label>Sheet ID &nbsp;<small style="font-weight:400">(lấy từ URL: …/spreadsheets/d/<b>SHEET_ID</b>/edit)</small></label>
+  <input id="sheetId" type="text" placeholder="Ví dụ: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+  <label>Tên sheet hoặc GID &nbsp;<small style="font-weight:400">(để trống = sheet đầu tiên)</small></label>
+  <input id="sheetName" type="text" placeholder="Ví dụ: Sheet1  hoặc  0" />
+  <div class="btn-row">
+    <button onclick="loadData()">▶ Tải dữ liệu</button>
+    <button class="btn-save" onclick="saveSheet()">💾 Lưu trang tính</button>
+  </div>
+  <p class="hint">⚠️ Google Sheet phải được chia sẻ công khai: <b>Bất kỳ ai có liên kết → Người xem</b>.</p>
+</div>
+
+<!-- ====== DANH SÁCH ĐÃ LƯU ====== -->
+<div id="savedList">
+  <h4>📋 Trang tính đã lưu:</h4>
+  <div class="sheet-cards" id="sheetCards"></div>
+</div>
+
+<div id="status">Nhập Sheet ID rồi bấm <b>Tải dữ liệu</b>.</div>
+
+<!-- ====== THANH TÌM KIẾM ====== -->
+<div id="searchBar">
+  <div class="search-row">
+    <input type="text" id="searchInput" placeholder="🔍 Tìm theo tên, hãng, PID, quà tặng…" oninput="applyFilter()" />
+    <select id="filterHang" onchange="applyFilter()">
+      <option value="">-- Tất cả hãng --</option>
+    </select>
+    <select id="filterCheck" onchange="applyFilter()">
+      <option value="">-- Tất cả loại --</option>
+    </select>
+    <button class="btn-clear" onclick="clearFilter()">✕ Xoá lọc</button>
+  </div>
+  <div id="resultCount"></div>
+</div>
+
+<div id="copyToast"></div>
+
+<!-- ====== TIÊU ĐỀ BẢNG HIỆN TẠI ====== -->
+<div id="tableTitle" style="display:none; text-align:center; margin-bottom:0; position:sticky; top:var(--sb-h, 0px); z-index:99; background:linear-gradient(135deg,#1a3c5e,#2e6ea6); padding:7px 0; border-radius:6px 6px 0 0;">
+  <span id="tableTitleText" style="font-size:15px; font-weight:700; color:#fff; letter-spacing:0.5px;"></span>
+</div>
+
+<!-- ====== BẢNG ====== -->
+<div class="table-wrapper" id="tableWrapper" style="display:none;">
+  <table id="dealTable">
+   
+    <thead>
+      <tr>
+        <th rowspan="2">CHECK</th>
+        <th rowspan="2">STOCK</th>
+        <th rowspan="2">HÃNG</th>
+        <th colspan="3">SẢN PHẨM</th>
+        <th rowspan="2">QUÀ TẶNG</th>
+        <th colspan="3">GIÁ BÁN</th>
+        <th colspan="2">CMS</th>
+        <th rowspan="2">GIÁ KHÁCH MUA<br>(DỰ KIẾN)<br><span id="pctHeader" style="font-size:11px;font-weight:400;">20,00%</span></th>
+      </tr>
+      <tr class="subheader">
+        <th>Tên sản phẩm</th>
+        <th>Link<br><span style="font-weight:400;font-size:10px;">ktok.com/</span></th>
+        <th>PID</th>
+        <th>Giá niêm yết</th>
+        <th>Giá giảm</th>
+        <th>Giá sau giảm</th>
+        <th>%</th>
+        <th>Com</th>
+      </tr>
+    </thead>
+    <tbody id="dealBody"></tbody>
+  </table>
+</div>
+
+<script>
+  // ─── Chỉ số cột (0-based): A=0 B=1 … M=12 ───────────────────────────────
+  const COL = {
+    CHECK:    0,   // A
+    STOCK:    1,   // B
+    HANG:     2,   // C
+    TEN:      3,   // D – Tên sản phẩm
+    LINK:     4,   // E
+    PID:      5,   // F
+    QUA:      6,   // G – Quà tặng
+    NIEM_YET: 7,   // H
+    GIAM:     8,   // I – % giảm
+    SAU_GIAM: 9,   // J
+    PCT:      10,  // K – % CMS
+    COM:      11,  // L
+    KH_MUA:   12,  // M
+  };
+
+  // Lấy giá trị ô: ưu tiên chuỗi đã format (f), rồi giá trị thô (v)
+  function val(row, colIdx) {
+    const c = row.c[colIdx];
+    if (!c || c.v === null || c.v === undefined) return '';
+    return (c.f != null) ? c.f : String(c.v);
+  }
+
+  function loadData() {
+    const sheetId   = document.getElementById('sheetId').value.trim();
+    const sheetName = document.getElementById('sheetName').value.trim();
+    if (!sheetId) { alert('Vui lòng nhập Sheet ID!'); return; }
+
+    // Lưu lại để tự điền lần sau
+    localStorage.setItem('dealSheetId',   sheetId);
+    localStorage.setItem('dealSheetName', sheetName);
+
+    const status = document.getElementById('status');
+    status.className = '';
+    status.textContent = 'Đang tải dữ liệu từ Google Sheets…';
+    status.style.display = 'block';
+    document.getElementById('tableWrapper').style.display = 'none';
+
+    // Tham số xác định sheet cụ thể
+    let sheetParam = '';
+    if (sheetName) {
+      sheetParam = isNaN(sheetName)
+        ? `&sheet=${encodeURIComponent(sheetName)}`
+        : `&gid=${encodeURIComponent(sheetName)}`;
+    }
+
+    // Bỏ 2 hàng tiêu đề trong sheet, lấy từ hàng 3 trở đi
+    const query  = encodeURIComponent('SELECT *');
+    // Dùng JSONP: Google gviz/tq yêu cầu responseHandler nằm trong tqx, KHÔNG phải &callback=
+    // headers=2 → Google bỏ 2 hàng tiêu đề đầu tiên, dữ liệu bắt đầu từ hàng 3
+    const cbName = 'gvizCb_' + Date.now();
+    const tqx    = encodeURIComponent(`out:json;responseHandler:${cbName}`);
+    const url    = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=${tqx}${sheetParam}&headers=2&tq=${query}`;
+
+    const script = document.createElement('script');
+
+    window[cbName] = function(data) {
+      delete window[cbName];
+      document.head.removeChild(script);
+      try {
+        renderTable(data.table.rows);
+        status.style.display = 'none';
+        document.getElementById('tableWrapper').style.display = 'block';
+        // Hiển thị tiêu đề theo tên lưu hoặc label nhập tay
+        const label = document.getElementById('sheetLabel').value.trim()
+                      || document.getElementById('sheetName').value.trim()
+                      || 'Bảng Deal';
+        document.getElementById('tableTitleText').textContent = label;
+        document.getElementById('tableTitle').style.display = 'block';
+        document.getElementById('searchInput').focus();
+      } catch (e) {
+        status.className = 'error';
+        status.textContent = 'Lỗi xử lý dữ liệu: ' + e.message;
+      }
+    };
+
+    script.onerror = function() {
+      delete window[cbName];
+      document.head.removeChild(script);
+      status.className = 'error';
+      status.textContent = 'Không tải được dữ liệu. Kiểm tra lại Sheet ID và quyền chia sẻ công khai.';
+    };
+
+    script.src = url;
+    document.head.appendChild(script);
+  }
+
+  // ─── Tìm kiếm & lọc ─────────────────────────────────────────────────────
+  function applyFilter() {
+    const keyword   = document.getElementById('searchInput').value.trim().toLowerCase();
+    const hangVal   = document.getElementById('filterHang').value.toLowerCase();
+    const checkVal  = document.getElementById('filterCheck').value.toLowerCase();
+    const rows      = document.querySelectorAll('#dealBody tr');
+    let visible = 0;
+
+    rows.forEach(tr => {
+      const text  = tr.dataset.searchText || '';
+      const hang  = tr.dataset.hang  || '';
+      const check = tr.dataset.check || '';
+
+      const matchKw    = !keyword  || text.includes(keyword);
+      const matchHang  = !hangVal  || hang  === hangVal;
+      const matchCheck = !checkVal || check === checkVal;
+
+      if (matchKw && matchHang && matchCheck) {
+        tr.classList.remove('hidden-row');
+        // Highlight từ khoá
+        if (keyword) highlightRow(tr, keyword);
+        else clearHighlight(tr);
+        visible++;
+      } else {
+        tr.classList.add('hidden-row');
+        clearHighlight(tr);
+      }
+    });
+
+    const total = [...rows].filter(r => !r.classList.contains('hidden-row')).length;
+    document.getElementById('resultCount').textContent =
+      keyword || hangVal || checkVal
+        ? `Hiển thị ${total} / ${rows.length} dòng`
+        : '';
+  }
+
+  function clearFilter() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('filterHang').value  = '';
+    document.getElementById('filterCheck').value = '';
+    applyFilter();
+  }
+
+  function highlightRow(tr, kw) {
+    // Chỉ highlight td văn bản thường (không link)
+    tr.querySelectorAll('td:not(.pid)').forEach(td => {
+      if (td.querySelector('a')) return; // bỏ qua ô link
+      clearHighlight(td);
+      const txt = td.textContent;
+      if (!txt.toLowerCase().includes(kw)) return;
+      const re = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      td.innerHTML = txt.replace(re, m => `<mark>${m}</mark>`);
+    });
+  }
+
+  function clearHighlight(node) {
+    node.querySelectorAll('mark').forEach(m => {
+      m.replaceWith(document.createTextNode(m.textContent));
+    });
+  }
+
+  function populateFilters() {
+    const hangSet  = new Set();
+    const checkSet = new Set();
+    document.querySelectorAll('#dealBody tr').forEach(tr => {
+      if (tr.dataset.hang)  hangSet.add(tr.dataset.hang);
+      if (tr.dataset.check) checkSet.add(tr.dataset.check);
+    });
+
+    const hangSel  = document.getElementById('filterHang');
+    const checkSel = document.getElementById('filterCheck');
+    // Giữ giá trị hiện tại
+    const curHang  = hangSel.value;
+    const curCheck = checkSel.value;
+
+    hangSel.innerHTML  = '<option value="">-- Tất cả hãng --</option>';
+    checkSel.innerHTML = '<option value="">-- Tất cả loại --</option>';
+    [...hangSet].sort().forEach(v  => hangSel.innerHTML  += `<option value="${v}">${v}</option>`);
+    [...checkSet].sort().forEach(v => checkSel.innerHTML += `<option value="${v}">${v}</option>`);
+
+    hangSel.value  = curHang;
+    checkSel.value = curCheck;
+  }
+
+  function renderTable(rows) {
+    const tbody = document.getElementById('dealBody');
+    tbody.innerHTML = '';
+
+    rows.forEach(row => {
+      if (!row.c) return;
+      // Bỏ dòng trống hoàn toàn
+      const hasData = row.c.some(c => c && c.v !== null && c.v !== undefined && String(c.v).trim() !== '');
+      if (!hasData) return;
+
+      const check   = val(row, COL.CHECK);
+      const stock   = val(row, COL.STOCK);
+      const hang    = val(row, COL.HANG);
+      const ten     = val(row, COL.TEN);
+      const link    = val(row, COL.LINK);
+      const pid     = val(row, COL.PID);
+      const qua     = val(row, COL.QUA);
+      const niemYet = val(row, COL.NIEM_YET);
+      const giam    = val(row, COL.GIAM);
+      const sauGiam = val(row, COL.SAU_GIAM);
+      const pct     = val(row, COL.PCT);
+      const com     = val(row, COL.COM);
+      const khMua   = val(row, COL.KH_MUA);
+
+      const tr = document.createElement('tr');
+
+      // Cột CHECK – tô màu theo nội dung
+      const tdCheck = document.createElement('td');
+      const checkUp = check.toUpperCase();
+      if (checkUp.includes('QUÀ') || checkUp.includes('QUA')) {
+        tdCheck.className = 'check-qua';
+      } else if (checkUp.includes('MUA')) {
+        tdCheck.className = 'check-mua1tang1';
+      } else {
+        tdCheck.className = 'center';
+      }
+      tdCheck.textContent = check;
+      tr.appendChild(tdCheck);
+
+      tr.appendChild(cell(stock, 'center'));
+      tr.appendChild(cell(hang, 'center'));
+      tr.appendChild(cell(ten));
+
+      // Link
+      const tdLink = document.createElement('td');
+      tdLink.className = 'center';
+      if (link) {
+        const fullLink = /^https?:\/\//i.test(link) ? link : 'https://' + link;
+        const a = document.createElement('a');
+        a.href = fullLink;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = 'Link';
+        tdLink.appendChild(a);
+        tdLink.appendChild(document.createElement('br'));
+        const btnCopyLink = makeCopyBtn(fullLink, '📋');
+        tdLink.appendChild(btnCopyLink);
+      }
+      tr.appendChild(tdLink);
+
+      // PID
+      const tdPid = document.createElement('td');
+      tdPid.className = 'pid';
+      tdPid.textContent = pid;
+      if (pid) {
+        tdPid.appendChild(document.createElement('br'));
+        tdPid.appendChild(makeCopyBtn(pid, '📋'));
+      }
+      tr.appendChild(tdPid);
+
+      // Quà tặng
+      const tdQua = document.createElement('td');
+      tdQua.className = 'qua-tang';
+      tdQua.textContent = qua;
+      tr.appendChild(tdQua);
+
+      tr.appendChild(priceCell(niemYet, 'center price-bold'));
+
+      // % giảm
+      const tdGiam = document.createElement('td');
+      tdGiam.className = 'center discount-pct';
+      tdGiam.textContent = giam;
+      tr.appendChild(tdGiam);
+
+      tr.appendChild(priceCell(sauGiam, 'center price-bold'));
+      tr.appendChild(cell(pct, 'center'));
+      tr.appendChild(cell(com, 'right'));
+      tr.appendChild(cell(khMua, 'center price-bold'));
+
+      // Dữ liệu phục vụ tìm kiếm
+      tr.dataset.searchText = [check, stock, hang, ten, pid, qua, niemYet, sauGiam, khMua]
+        .join(' ').toLowerCase();
+      tr.dataset.hang  = hang.toLowerCase();
+      tr.dataset.check = check.toLowerCase();
+
+      tbody.appendChild(tr);
+    });
+
+    populateFilters();
+    document.getElementById('searchBar').style.display = 'block';
+    applyFilter();
+    requestAnimationFrame(() => {
+      const sbH  = document.getElementById('searchBar').offsetHeight +
+                   parseInt(getComputedStyle(document.getElementById('searchBar')).marginBottom || 0);
+      const titleEl = document.getElementById('tableTitle');
+      const titleH = titleEl.offsetHeight > 0
+                   ? titleEl.offsetHeight + parseInt(getComputedStyle(titleEl).marginBottom || 0)
+                   : 0;
+      const th1H = document.querySelector('#dealTable thead tr:first-child')?.offsetHeight || 36;
+      document.documentElement.style.setProperty('--sb-h',    sbH    + 'px');
+      document.documentElement.style.setProperty('--title-h', titleH + 'px');
+      document.documentElement.style.setProperty('--th1-h',   th1H   + 'px');
+    });
+  }
+
+  function cell(text, cls) {
+    const td = document.createElement('td');
+    if (cls) td.className = cls;
+    td.textContent = text;
+    return td;
+  }
+
+  function priceCell(text, cls) {
+    const td = document.createElement('td');
+    if (cls) td.className = cls;
+    if (!text) return td;
+    td.style.textAlign = 'center';
+    td.style.verticalAlign = 'middle';
+    td.appendChild(document.createTextNode(text));
+    td.appendChild(document.createElement('br'));
+    td.appendChild(makeCopyBtn(text, '📋'));
+    return td;
+  }
+
+  function makeCopyBtn(text, label) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-copy';
+    btn.textContent = label;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(text).then(() => {
+        btn.classList.add('copied');
+        btn.textContent = '✓ Đã copy';
+        showToast('Đã copy: ' + text.slice(0, 60) + (text.length > 60 ? '…' : ''));
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.textContent = label;
+        }, 2000);
+      });
+    });
+    return btn;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('copyToast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ─── Saved sheets (localStorage key: dealSavedSheets) ──────────────────
+  const STORAGE_KEY = 'dealSavedSheets';
+  let activeCardId  = null;
+
+  function getSaved() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+    catch { return []; }
+  }
+
+  function setSaved(arr) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  }
+
+  function saveSheet() {
+    const id    = document.getElementById('sheetId').value.trim();
+    const name  = document.getElementById('sheetName').value.trim();
+    const label = document.getElementById('sheetLabel').value.trim() || id.slice(0, 20) + '…';
+    if (!id) { alert('Vui lòng nhập Sheet ID trước khi lưu!'); return; }
+    const arr = getSaved();
+    // Tránh lưu trùng cùng id + name
+    const dup = arr.find(s => s.id === id && s.name === name);
+    if (dup) {
+      dup.label = label; // cập nhật nhãn nếu trùng
+    } else {
+      arr.push({ uid: Date.now(), label, id, name });
+    }
+    setSaved(arr);
+    renderCards();
+    // Đánh dấu active
+    const entry = getSaved().find(s => s.id === id && s.name === name);
+    if (entry) setActiveCard(entry.uid);
+  }
+
+  function deleteSheet(uid) {
+    setSaved(getSaved().filter(s => s.uid !== uid));
+    if (activeCardId === uid) activeCardId = null;
+    renderCards();
+  }
+
+  function loadSaved(uid) {
+    const entry = getSaved().find(s => s.uid === uid);
+    if (!entry) return;
+    document.getElementById('sheetId').value    = entry.id;
+    document.getElementById('sheetName').value  = entry.name;
+    document.getElementById('sheetLabel').value = entry.label;
+    setActiveCard(uid);
+    loadData();
+  }
+
+  function setActiveCard(uid) {
+    activeCardId = uid;
+    document.querySelectorAll('.sheet-card').forEach(el => {
+      el.classList.toggle('active', Number(el.dataset.uid) === uid);
+    });
+  }
+
+  function renderCards() {
+    const container = document.getElementById('sheetCards');
+    const arr = getSaved();
+    if (!arr.length) {
+      container.innerHTML = '<span class="saved-empty">Chưa có trang tính nào được lưu.</span>';
+      return;
+    }
+    container.innerHTML = '';
+    arr.forEach(entry => {
+      const card = document.createElement('div');
+      card.className = 'sheet-card' + (entry.uid === activeCardId ? ' active' : '');
+      card.dataset.uid = entry.uid;
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'card-label';
+      labelEl.innerHTML = entry.label +
+        `<span class="card-sub">${entry.name ? 'Sheet: ' + entry.name : 'Sheet mặc định'}</span>`;
+      labelEl.addEventListener('click', () => loadSaved(entry.uid));
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'card-del';
+      delBtn.title = 'Xoá';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSheet(entry.uid); });
+
+      card.appendChild(labelEl);
+      card.appendChild(delBtn);
+      container.appendChild(card);
+    });
+  }
+
+  // Khởi động
+  window.addEventListener('DOMContentLoaded', () => {
+    renderCards();
+    // Nếu chỉ có 1 sheet đã lưu → tự load luôn
+    const arr = getSaved();
+    if (arr.length === 1) {
+      loadSaved(arr[0].uid);
+    }
+  });
+</script>
+
+</body>
+</html>
