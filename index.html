@@ -471,6 +471,7 @@
 
   function setActiveCard(uid) {
     activeCardId = uid;
+    setLastActive(uid);
     document.querySelectorAll('.sheet-card').forEach(el => {
       el.classList.toggle('active', Number(el.dataset.uid) === uid);
     });
@@ -507,14 +508,23 @@
     });
   }
 
+  function setLastActive(uid) {
+    localStorage.setItem('dealLastActiveUid', String(uid));
+  }
+
+  function getLastActive() {
+    return Number(localStorage.getItem('dealLastActiveUid')) || null;
+  }
+
   // Khởi động
   window.addEventListener('DOMContentLoaded', () => {
     renderCards();
-    // Nếu chỉ có 1 sheet đã lưu → tự load luôn
     const arr = getSaved();
-    if (arr.length === 1) {
-      loadSaved(arr[0].uid);
-    }
+    if (!arr.length) return;
+    // Ưu tiên load sheet đang xem lần trước, nếu không còn thì load sheet đầu tiên
+    const lastUid = getLastActive();
+    const target = arr.find(s => s.uid === lastUid) || arr[0];
+    loadSaved(target.uid);
   });
 </script>
 
