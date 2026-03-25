@@ -78,6 +78,7 @@
         <th colspan="3">GIÁ BÁN</th>
         <th colspan="2">CMS</th>
         <th rowspan="2">GIÁ KHÁCH MUA<br>(DỰ KIẾN)<br><span id="pctHeader" style="font-size:11px;font-weight:400;">20,00%</span></th>
+        <th rowspan="2">GHI CHÚ</th>
       </tr>
       <tr class="subheader">
         <th>Tên sản phẩm</th>
@@ -364,6 +365,21 @@
       tr.appendChild(cell(com, 'right'));
       tr.appendChild(cell(khMua, 'center price-bold'));
 
+      // Ghi chú (editable)
+      const tdNote = document.createElement('td');
+      tdNote.className = 'note-cell';
+      tdNote.contentEditable = 'true';
+      tdNote.spellcheck = false;
+      // Khôi phục ghi chú đã lưu
+      const noteKey = 'dealNote_' + (pid || ten || (hang + '_' + check));
+      tdNote.textContent = localStorage.getItem(noteKey) || '';
+      tdNote.addEventListener('blur', () => {
+        const v = tdNote.textContent.trim();
+        if (v) localStorage.setItem(noteKey, v);
+        else localStorage.removeItem(noteKey);
+      });
+      tr.appendChild(tdNote);
+
       // Dữ liệu phục vụ tìm kiếm
       tr.dataset.searchText = [check, stock, hang, ten, pid, qua, niemYet, sauGiam, khMua]
         .join(' ').toLowerCase();
@@ -566,7 +582,7 @@
 
   // ─── Xuất dữ liệu theo bộ lọc ────────────────────────────────────
   function exportFiltered() {
-    const headers = ['CHECK','STOCK','HÃNG','Tên sản phẩm','Link','PID','Quà tặng','Giá niêm yết','% Giảm','Giá sau giảm','% CMS','Com','Giá khách mua'];
+    const headers = ['CHECK','STOCK','HÃNG','Tên sản phẩm','Link','PID','Quà tặng','Giá niêm yết','% Giảm','Giá sau giảm','% CMS','Com','Giá khách mua','Ghi chú'];
     const visibleRows = document.querySelectorAll('#dealBody tr:not(.hidden-row)');
     if (!visibleRows.length) { alert('Không có dữ liệu để xuất!'); return; }
 
@@ -580,6 +596,8 @@
     const csvRows = [headers.map(escCSV).join(',')];
     visibleRows.forEach(tr => {
       const raw = JSON.parse(tr.dataset.raw || '[]');
+      const note = tr.querySelector('.note-cell')?.textContent.trim() || '';
+      raw.push(note);
       csvRows.push(raw.map(escCSV).join(','));
     });
 

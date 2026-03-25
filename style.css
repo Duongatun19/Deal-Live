@@ -270,4 +270,18 @@
     /* Marked red row (C key) */
     tbody tr.marked-red { background: #ffcdd2 !important; }
     tbody tr.marked-red:hover { background: #ef9a9a !important; }
+    /* Note cell */
+    .note-cell {
+      min-width: 120px;
+      max-width: 200px;
+      padding: 5px 6px;
+      font-size: 12px;
+      line-height: 1.4;
+      cursor: text;
+      outline: none;
+      border: 1px dashed transparent;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .note-cell:hover { border-color: #b0c4de; }
+    .note-cell:focus { border-color: #1a3c5e; background: #fffde7; }
   
