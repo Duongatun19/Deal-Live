@@ -46,8 +46,8 @@
     </select>
     <select id="filterColor" onchange="applyFilter()">
       <option value="">-- Tất cả màu --</option>
-      <option value="green">🟢 Đánh dấu xanh (V)</option>
-      <option value="red">🔴 Đánh dấu đỏ (C)</option>
+      <option value="green">🟢 Đánh dấu xanh (+)</option>
+      <option value="red">🔴 Đánh dấu đỏ (-)</option>
       <option value="any">🎨 Có đánh dấu</option>
       <option value="none">⬜ Chưa đánh dấu</option>
     </select>
@@ -632,10 +632,10 @@
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (!hoveredRow) return;
 
-    if (e.key === 'v' || e.key === 'V') {
+    if (e.key === '+' || e.key === '=') {
       hoveredRow.classList.remove('marked-red');
       hoveredRow.classList.toggle('marked-row');
-    } else if (e.key === 'c' || e.key === 'C') {
+    } else if (e.key === '-' || e.key === '_') {
       hoveredRow.classList.remove('marked-row');
       hoveredRow.classList.toggle('marked-red');
     }
