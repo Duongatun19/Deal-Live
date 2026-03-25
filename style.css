@@ -206,6 +206,17 @@
       white-space: nowrap;
     }
     #searchBar .btn-clear:hover { background: #c0392b; }
+    .btn-export {
+      background: #1a3c5e;
+      color: #fff;
+      border: none;
+      padding: 6px 13px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .btn-export:hover { background: #2e5f8a; }
     #resultCount {
       font-size: 11px;
       color: #666;
@@ -253,4 +264,10 @@
       z-index: 9999;
     }
     #copyToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    /* Marked row (V key) */
+    tbody tr.marked-row { background: #b9f6ca !important; }
+    tbody tr.marked-row:hover { background: #81c784 !important; }
+    /* Marked red row (C key) */
+    tbody tr.marked-red { background: #ffcdd2 !important; }
+    tbody tr.marked-red:hover { background: #ef9a9a !important; }
   

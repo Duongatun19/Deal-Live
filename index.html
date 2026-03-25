@@ -44,7 +44,15 @@
     <select id="filterCheck" onchange="applyFilter()">
       <option value="">-- Tất cả loại --</option>
     </select>
+    <select id="filterColor" onchange="applyFilter()">
+      <option value="">-- Tất cả màu --</option>
+      <option value="green">🟢 Đánh dấu xanh (V)</option>
+      <option value="red">🔴 Đánh dấu đỏ (C)</option>
+      <option value="any">🎨 Có đánh dấu</option>
+      <option value="none">⬜ Chưa đánh dấu</option>
+    </select>
     <button class="btn-clear" onclick="clearFilter()">✕ Xoá lọc</button>
+    <button class="btn-export" onclick="exportFiltered()">📤 Xuất dữ liệu</button>
   </div>
   <div id="resultCount"></div>
 </div>
@@ -180,6 +188,7 @@
     const keyword   = document.getElementById('searchInput').value.trim().toLowerCase();
     const hangVal   = document.getElementById('filterHang').value.toLowerCase();
     const checkVal  = document.getElementById('filterCheck').value.toLowerCase();
+    const colorVal  = document.getElementById('filterColor').value;
     const rows      = document.querySelectorAll('#dealBody tr');
     let visible = 0;
 
@@ -192,7 +201,13 @@
       const matchHang  = !hangVal  || hang  === hangVal;
       const matchCheck = !checkVal || check === checkVal;
 
-      if (matchKw && matchHang && matchCheck) {
+      let matchColor = true;
+      if (colorVal === 'green')    matchColor = tr.classList.contains('marked-row');
+      else if (colorVal === 'red') matchColor = tr.classList.contains('marked-red');
+      else if (colorVal === 'any') matchColor = tr.classList.contains('marked-row') || tr.classList.contains('marked-red');
+      else if (colorVal === 'none') matchColor = !tr.classList.contains('marked-row') && !tr.classList.contains('marked-red');
+
+      if (matchKw && matchHang && matchCheck && matchColor) {
         tr.classList.remove('hidden-row');
         // Highlight từ khoá
         if (keyword) highlightRow(tr, keyword);
@@ -206,15 +221,16 @@
 
     const total = [...rows].filter(r => !r.classList.contains('hidden-row')).length;
     document.getElementById('resultCount').textContent =
-      keyword || hangVal || checkVal
+      keyword || hangVal || checkVal || colorVal
         ? `Hiển thị ${total} / ${rows.length} dòng`
         : '';
   }
 
   function clearFilter() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('filterHang').value  = '';
-    document.getElementById('filterCheck').value = '';
+    document.getElementById('searchInput').value  = '';
+    document.getElementById('filterHang').value   = '';
+    document.getElementById('filterCheck').value  = '';
+    document.getElementById('filterColor').value  = '';
     applyFilter();
   }
 
@@ -353,6 +369,9 @@
         .join(' ').toLowerCase();
       tr.dataset.hang  = hang.toLowerCase();
       tr.dataset.check = check.toLowerCase();
+
+      // Lưu dữ liệu gốc để xuất CSV
+      tr.dataset.raw = JSON.stringify([check, stock, hang, ten, link, pid, qua, niemYet, giam, sauGiam, pct, com, khMua]);
 
       tbody.appendChild(tr);
     });
@@ -544,6 +563,65 @@
     } catch (e) { /* hash không hợp lệ → bỏ qua */ }
     return false;
   }
+
+  // ─── Xuất dữ liệu theo bộ lọc ────────────────────────────────────
+  function exportFiltered() {
+    const headers = ['CHECK','STOCK','HÃNG','Tên sản phẩm','Link','PID','Quà tặng','Giá niêm yết','% Giảm','Giá sau giảm','% CMS','Com','Giá khách mua'];
+    const visibleRows = document.querySelectorAll('#dealBody tr:not(.hidden-row)');
+    if (!visibleRows.length) { alert('Không có dữ liệu để xuất!'); return; }
+
+    const escCSV = (v) => {
+      const s = String(v == null ? '' : v);
+      return (s.includes('"') || s.includes(',') || s.includes('\n'))
+        ? '"' + s.replace(/"/g, '""') + '"'
+        : s;
+    };
+
+    const csvRows = [headers.map(escCSV).join(',')];
+    visibleRows.forEach(tr => {
+      const raw = JSON.parse(tr.dataset.raw || '[]');
+      csvRows.push(raw.map(escCSV).join(','));
+    });
+
+    const BOM = '\uFEFF';
+    const csv = BOM + csvRows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const label = document.getElementById('sheetLabel').value.trim() || 'deal';
+    const colorVal = document.getElementById('filterColor').value;
+    const suffix = colorVal === 'green' ? '_xanh' : colorVal === 'red' ? '_do' : colorVal === 'any' ? '_danh_dau' : '';
+    a.href = url;
+    a.download = label.replace(/[^\w\s\-]/g, '').replace(/\s+/g, '_') + suffix + '_' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Đã xuất ${visibleRows.length} dòng ra CSV`);
+  }
+
+  // ─── Đánh dấu hàng bằng phím V ──────────────────────────────────────
+  let hoveredRow = null;
+
+  document.addEventListener('mouseover', (e) => {
+    const tr = e.target.closest('#dealBody tr');
+    if (tr) hoveredRow = tr;
+  });
+
+  document.addEventListener('keydown', (e) => {
+    // Bỏ qua nếu đang gõ trong input/select/textarea
+    const tag = document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (!hoveredRow) return;
+
+    if (e.key === 'v' || e.key === 'V') {
+      hoveredRow.classList.remove('marked-red');
+      hoveredRow.classList.toggle('marked-row');
+    } else if (e.key === 'c' || e.key === 'C') {
+      hoveredRow.classList.remove('marked-row');
+      hoveredRow.classList.toggle('marked-red');
+    }
+  });
 
   // Khởi động
   window.addEventListener('DOMContentLoaded', () => {
