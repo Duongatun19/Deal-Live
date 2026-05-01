@@ -10,8 +10,10 @@
 
 <h1>Bảng Deal Sản Phẩm</h1>
 
-<!-- ====== CẤU HÌNH ====== -->
-<div id="config">
+<!-- ====== WRAPPER CHO HAI BẢNG ====== -->
+<div class="config-wrapper">
+  <!-- ====== CẤU HÌNH ====== -->
+  <div id="config">
   <h3>⚙️ Cấu hình Google Sheets</h3>
   <label>Tên gợi nhớ &nbsp;<small style="font-weight:400">(để phân biệt khi lưu nhiều sheet)</small></label>
   <input id="sheetLabel" type="text" placeholder="Ví dụ: Deal tháng 3, MDCare April…" />
@@ -24,6 +26,75 @@
     <button class="btn-save" onclick="saveSheet()">💾 Lưu trang tính</button>
   </div>
   <p class="hint">⚠️ Google Sheet phải được chia sẻ công khai: <b>Bất kỳ ai có liên kết → Người xem</b>.</p>
+</div>
+
+<!-- ====== TÍNH TOÁN GIẢM GIÁ ====== -->
+<div id="discountCalc">
+  <h3>💰 Công cụ tính giá</h3>
+  
+  <!-- Tính giá sau giảm -->
+  <div class="calc-group">
+    <h4>1️⃣ Tính giá sau giảm</h4>
+    <div class="calc-row">
+      <div class="calc-input">
+        <label>Giá gốc</label>
+        <input id="originalPrice1" type="text" placeholder="Ví dụ: 2000000" oninput="calculateFinalPrice()" />
+        <span class="unit">đ</span>
+      </div>
+      <div class="calc-input">
+        <label>% Giảm</label>
+        <input id="discountPercent1" type="number" placeholder="20" min="0" max="100" step="0.01" oninput="calculateFinalPrice()" />
+        <span class="unit">%</span>
+      </div>
+      <div class="calc-result">
+        <label>Giá sau giảm</label>
+        <div id="finalPrice1" class="result-value">---</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tính % giảm -->
+  <div class="calc-group">
+    <h4>2️⃣ Tính % giảm</h4>
+    <div class="calc-row">
+      <div class="calc-input">
+        <label>Giá gốc</label>
+        <input id="originalPrice2" type="text" placeholder="Ví dụ: 2000000" oninput="calculateDiscountPercent()" />
+        <span class="unit">đ</span>
+      </div>
+      <div class="calc-input">
+        <label>Giá sau giảm</label>
+        <input id="finalPrice2" type="text" placeholder="1600000" oninput="calculateDiscountPercent()" />
+        <span class="unit">đ</span>
+      </div>
+      <div class="calc-result">
+        <label>% Giảm</label>
+        <div id="discountPercent2" class="result-value">---</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tính giá tối đa được giảm -->
+  <div class="calc-group">
+    <h4>3️⃣ Tính giá SP tối đa được giảm</h4>
+    <div class="calc-row">
+      <div class="calc-input">
+        <label>% Giảm giá</label>
+        <input id="discountPercent3" type="number" placeholder="20" min="0" max="100" step="0.01" oninput="calculateMaxPrice()" />
+        <span class="unit">%</span>
+      </div>
+      <div class="calc-input">
+        <label>Số tiền giảm tối đa</label>
+        <input id="maxDiscountAmount" type="text" placeholder="500000" oninput="calculateMaxPrice()" />
+        <span class="unit">đ</span>
+      </div>
+      <div class="calc-result">
+        <label>Giá SP tối đa</label>
+        <div id="maxProductPrice" class="result-value">---</div>
+      </div>
+    </div>
+  </div>
+</div>
 </div>
 
 <!-- ====== DANH SÁCH ĐÃ LƯU ====== -->
@@ -118,6 +189,73 @@
     const c = row.c[colIdx];
     if (!c || c.v === null || c.v === undefined) return '';
     return (c.f != null) ? c.f : String(c.v);
+  }
+
+  // ─── Tính toán giá sản phẩm ──────────────────────────────────────────
+  
+  // Hàm format số tiền
+  function formatCurrency(value) {
+    return new Intl.NumberFormat('vi-VN').format(Math.round(value)) + ' đ';
+  }
+  
+  // Hàm parse số tiền (loại bỏ ký tự không phải số)
+  function parseAmount(str) {
+    if (!str) return 0;
+    const cleaned = String(str).trim().replace(/[^\d]/g, '');
+    return parseFloat(cleaned) || 0;
+  }
+
+  // 1. Tính giá sau giảm
+  function calculateFinalPrice() {
+    const originalPrice = parseAmount(document.getElementById('originalPrice1').value);
+    const discountPercent = parseFloat(document.getElementById('discountPercent1').value);
+    const resultDiv = document.getElementById('finalPrice1');
+
+    if (!originalPrice || originalPrice <= 0 || !discountPercent || discountPercent <= 0) {
+      resultDiv.textContent = '---';
+      return;
+    }
+
+    const finalPrice = originalPrice * (1 - discountPercent / 100);
+    const discountAmount = originalPrice - finalPrice;
+    
+    resultDiv.innerHTML = formatCurrency(finalPrice) + 
+      `<br><small style="font-size:11px;font-weight:400;opacity:0.8;">Giảm: ${formatCurrency(discountAmount)}</small>`;
+  }
+
+  // 2. Tính % giảm
+  function calculateDiscountPercent() {
+    const originalPrice = parseAmount(document.getElementById('originalPrice2').value);
+    const finalPrice = parseAmount(document.getElementById('finalPrice2').value);
+    const resultDiv = document.getElementById('discountPercent2');
+
+    if (!originalPrice || originalPrice <= 0 || !finalPrice || finalPrice < 0 || finalPrice >= originalPrice) {
+      resultDiv.textContent = '---';
+      return;
+    }
+
+    const discountPercent = ((originalPrice - finalPrice) / originalPrice) * 100;
+    const discountAmount = originalPrice - finalPrice;
+    
+    resultDiv.innerHTML = discountPercent.toFixed(2) + '%' +
+      `<br><small style="font-size:11px;font-weight:400;opacity:0.8;">Giảm: ${formatCurrency(discountAmount)}</small>`;
+  }
+
+  // 3. Tính giá sản phẩm tối đa được giảm
+  function calculateMaxPrice() {
+    const percent = parseFloat(document.getElementById('discountPercent3').value);
+    const amount = parseAmount(document.getElementById('maxDiscountAmount').value);
+    const resultDiv = document.getElementById('maxProductPrice');
+
+    if (!percent || percent <= 0 || !amount || amount <= 0) {
+      resultDiv.textContent = '---';
+      return;
+    }
+
+    // Công thức: Giá SP tối đa = Số tiền giảm tối đa / (% giảm / 100)
+    const maxPrice = amount / (percent / 100);
+    
+    resultDiv.textContent = formatCurrency(maxPrice);
   }
 
   function loadData() {

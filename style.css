@@ -5,7 +5,7 @@
       font-size: 13px;
       background: #f4f6f9;
       padding: 20px;
-      min-width: 1100px;  /* body cuộn ngang nếu viewport hẹp */
+      min-width: 1300px;  /* body cuộn ngang nếu viewport hẹp */
     }
     h1 {
       text-align: center;
@@ -15,10 +15,21 @@
       text-transform: uppercase;
       letter-spacing: 1px;
     }
+    
+    /* Config wrapper - two panels side by side */
+    .config-wrapper {
+      max-width: 1400px;
+      margin: 0 auto 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    
     /* Config panel */
     #config {
-      max-width: 660px;
-      margin: 0 auto 20px;
+      flex: 1;
+      max-width: none;
+      margin: 0;
       background: #fff3cd;
       border: 1px solid #ffc107;
       border-radius: 8px;
@@ -51,6 +62,93 @@
     #config .btn-row button { flex: 0 0 auto; }
     .btn-save { background: #27ae60 !important; }
     .btn-save:hover { background: #1e8449 !important; }
+    
+    /* Discount Calculator */
+    #discountCalc {
+      flex: 1;
+      max-width: none;
+      margin: 0;
+      background: #d4edda;
+      border: 1px solid #28a745;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #155724;
+    }
+    #discountCalc h3 { margin-bottom: 14px; font-size: 14px; }
+    #discountCalc h4 { 
+      font-size: 12px; 
+      font-weight: 600; 
+      margin-bottom: 8px; 
+      color: #0f4520;
+      opacity: 0.9;
+    }
+    #discountCalc .calc-group {
+      margin-bottom: 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px dashed rgba(40, 167, 69, 0.3);
+    }
+    #discountCalc .calc-group:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    #discountCalc label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 11px; }
+    #discountCalc .calc-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    #discountCalc .calc-input {
+      flex: 1;
+      min-width: 120px;
+      position: relative;
+    }
+    #discountCalc .calc-input input {
+      width: 100%;
+      padding: 5px 28px 5px 6px;
+      border: 1px solid #28a745;
+      border-radius: 4px;
+      font-size: 12px;
+      background: #fff;
+    }
+    #discountCalc .calc-input .unit {
+      position: absolute;
+      right: 8px;
+      bottom: 7px;
+      font-weight: 600;
+      font-size: 11px;
+      color: #28a745;
+      pointer-events: none;
+    }
+    #discountCalc .calc-result {
+      flex: 1.2;
+      min-width: 140px;
+    }
+    #discountCalc .result-value {
+      background: #fff;
+      border: 2px solid #28a745;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #155724;
+      text-align: center;
+      min-height: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.3;
+    }
+    #discountCalc .hint {
+      font-size: 11px;
+      color: #155724;
+      margin-top: 10px;
+      opacity: 0.85;
+    }
+    
     /* Saved sheets list */
     #savedList {
       max-width: 660px;
@@ -284,4 +382,15 @@
     }
     .note-cell:hover { border-color: #b0c4de; }
     .note-cell:focus { border-color: #1a3c5e; background: #fffde7; }
+
+    /* Responsive: xếp chồng hai bảng khi màn hình nhỏ */
+    @media (max-width: 1200px) {
+      .config-wrapper {
+        flex-direction: column;
+      }
+      #config, #discountCalc {
+        max-width: 660px;
+        margin: 0 auto;
+      }
+    }
   
